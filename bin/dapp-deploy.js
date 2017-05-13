@@ -236,7 +236,7 @@ Q.fcall(function () {
 })
 
 function deploy_contract (contract_name){
-  var bin_filepath, abi_filepath, contract_bin, contract_abi, gas_estimate, $contract, deployed_contract_address, promise
+  var bin_filepath, abi_filepath, contract_bin, contract_abi, $contract, gas_estimate, contract_constructor_parameters, contract_data, deployed_contract_address, promise
   var deferred = Q.defer()
 
   bin_filepath = input_directory + '/' + contract_name + '.bin'
@@ -245,23 +245,55 @@ function deploy_contract (contract_name){
   contract_bin = fs.readFileSync(bin_filepath).toString()
   contract_abi = fs.readFileSync(abi_filepath).toString()
 
-  gas_estimate = gas ? gas : web3.eth.estimateGas({data: contract_bin})
-
   $contract = web3.eth.contract(JSON.parse(contract_abi))
 
-  $contract.new({data: contract_bin, from: owner, gas: gas_estimate, value: wei}, (error, deployed_contract) => {
+  if (gas){
+    gas_estimate = gas
+  }
+  else if (params.length === 0) {
+    try {
+      gas_estimate = web3.eth.estimateGas({data: contract_bin})
+    }
+    catch(error){
+      deferred.reject(new Error('[Error] Deployment of "' + contract_name + '" contract failed with the following information:' + "\n" + error.message))
+      return deferred.promise
+    }
+  }
+  else {
+    try {
+      contract_constructor_parameters = params.slice()
+      contract_constructor_parameters.push({data: contract_bin})
+      contract_data = $contract.new.getData.apply($contract, contract_constructor_parameters)
+      gas_estimate = web3.eth.estimateGas({data: contract_data})
+    }
+    catch(error){
+      deferred.reject(new Error('[Error] Deployment of "' + contract_name + '" contract failed with the following information:' + "\n" + error.message))
+      return deferred.promise
+    }
+  }
+
+  contract_constructor_parameters = (params.length)? params.slice() : []
+  contract_constructor_parameters.push({
+    data: contract_bin,
+    from: owner,
+    gas: gas_estimate,
+    value: wei
+  })
+  contract_constructor_parameters.push((error, deployed_contract) => {
     if (error){
-      deferred.reject(new Error('[Error] Deployment of ' + contract_name + ' contract failed with the following information:' + "\n" + error.message))
+      deferred.reject(new Error('[Error] Deployment of "' + contract_name + '" contract failed with the following information:' + "\n" + error.message))
     }
     if (! deployed_contract.address) {
-      DEBUG('[Notice] Transaction hash for deployment of ' + contract_name + ' contract:' + "\n    " + deployed_contract.transactionHash)
+      DEBUG('[Notice] Transaction hash for deployment of "' + contract_name + '" contract:' + "\n    " + deployed_contract.transactionHash)
     }
     else {
       deployed_contract_address = deployed_contract.address
-      INFO('[Notice] ' + contract_name + ' contract has successfully been deployed at address:' + "\n    " + deployed_contract_address)
+      INFO('[Notice] "' + contract_name + '" contract has successfully been deployed at address:' + "\n    " + deployed_contract_address)
       deferred.resolve()
     }
   })
+
+  $contract.new.apply($contract, contract_constructor_parameters)
 
   promise = deferred.promise
   .then(() => {
@@ -314,10 +346,10 @@ function save_deployment_address(contract_name, deployed_contract_address){
 
     try {
       fs.writeFileSync(deployments_filepath, JSON.stringify(contract_deployments))
-      WARN('[Notice] Address of deployed contract has successfully been added to file:' + "\n    " + deployments_filepath)
+      WARN('[Notice] Address of deployed "' + contract_name + '" contract has successfully been added to file:' + "\n    " + deployments_filepath)
     }
     catch (error){
-      throw new Error('[Error] Unable to output deployed contract address to file "' + deployments_filepath + '". Operation failed with the following information:' + "\n" + error.message)
+      throw new Error('[Error] Unable to output address of deployed "' + contract_name + '" contract to file "' + deployments_filepath + '". Operation failed with the following information:' + "\n" + error.message)
     }
   })
 
