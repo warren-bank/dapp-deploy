@@ -33,8 +33,14 @@ Usage: $0 [options]
       default: true
     })
     .option('c', {
-      alias: 'contract',
-      describe: 'Deploy only specified contract(s)',
+      alias: ['contract', 'whitelist'],
+      describe: 'Deploy specified contract(s)',
+      string: true,
+      array: true
+    })
+    .option('x', {
+      alias: ['exclude_contract', 'blacklist'],
+      describe: 'Do not deploy specified contract(s)',
       string: true,
       array: true
     })
@@ -128,6 +134,9 @@ Usage: $0 [options]
     .epilog("copyright: Warren Bank <github.com/warren-bank>\nlicense: GPLv2")
     .argv
 
+const contract_whitelist = argv.c
+const contract_blacklist = argv.x
+
 const https = argv.tls
 const host = argv.h
 const port = argv.p
@@ -181,11 +190,19 @@ bins = bins.filter((bin) => {
   return (abis.indexOf(abi) >= 0)
 })
 
-// ignore unspecified contracts
-if (argv.c && argv.c.length){
-  regex = new RegExp('(?:^|/)(?:' + argv.c.join('|') + ')\.bin$')
+// ignore contracts NOT in whitelist
+if (contract_whitelist && contract_whitelist.length){
+  regex = new RegExp('(?:^|/)(?:' + contract_whitelist.join('|') + ')\.bin$')
   bins = bins.filter((bin) => {
     return bin.match(regex)
+  })
+}
+
+// ignore contracts in blacklist
+if (contract_blacklist && contract_blacklist.length){
+  regex = new RegExp('(?:^|/)(?:' + contract_blacklist.join('|') + ')\.bin$')
+  bins = bins.filter((bin) => {
+    return (! bin.match(regex))
   })
 }
 

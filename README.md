@@ -54,59 +54,72 @@ Usage: dapp-deploy [options]
 
 
 Options:
-  --all                         Deploy all contracts   [boolean] [default: true]
-  -c, --contract                Deploy only specified contract(s)        [array]
-  --params                      Parameter(s) to pass to contract constructor(s)
-                                note: In most situations, each contract having a
-                                constructor that accepts input parameters should
-                                be deployed individually, rather than in a
-                                batch. Please be careful.  [array] [default: []]
-  --value, --wei                Value (wei) to pass to contract constructor(s)
-                                note: In most situations, each contract having a
-                                payable constructor should be deployed
-                                individually, rather than in a batch. Please be
-                                careful.                   [number] [default: 0]
-  --gas                         Gas to send with each transaction
-                                note: In most situations, it would be better to
-                                not use this option. By default, the amount of
-                                gas sent is an estimate.                [number]
-  -h, --host                    Ethereum JSON-RPC server hostname
-                                                 [string] [default: "localhost"]
-  -p, --port                    Ethereum JSON-RPC server port number
-                                                        [number] [default: 8545]
-  --tls, --https, --ssl         Require TLS handshake (https:) to connect to
-                                Ethereum JSON-RPC server
-                                                      [boolean] [default: false]
-  -a, --aa, --account_address   Address of Ethereum account to own deployed
-                                contracts                               [string]
-  -A, --ai, --account_index     Index of Ethereum account to own deployed
-                                contracts.
-                                note: List of available/unlocked accounts is
-                                determined by Ethereum client.
+  --all                                Deploy all contracts
+                                                       [boolean] [default: true]
+  -c, --contract, --whitelist          Deploy specified contract(s)      [array]
+  -x, --exclude_contract, --blacklist  Do not deploy specified contract(s)
+                                                                         [array]
+  --params                             Parameter(s) to pass to contract
+                                       constructor(s)
+                                       note: In most situations, each contract
+                                       having a constructor that accepts input
+                                       parameters should be deployed
+                                       individually, rather than in a batch.
+                                       Please be careful.  [array] [default: []]
+  --value, --wei                       Value (wei) to pass to contract
+                                       constructor(s)
+                                       note: In most situations, each contract
+                                       having a payable constructor should be
+                                       deployed individually, rather than in a
+                                       batch. Please be careful.
                                                            [number] [default: 0]
-  -i, --input_directory         Path to input directory. All compiled contract
-                                artifacts are read from this directory.
-                                note: The default path assumes that the current
-                                directory is the root of a compiled "dapp"
-                                project.             [string] [default: "./out"]
-  -o, --od, --output_directory  Path to output directory. All
-                                "contract.deployed" JSON files will be written
-                                to this directory.   [string] [default: "./out"]
-  -O, --op, --output_pattern    Pattern to specify absolute output file path.
-                                The substitution pattern "{{contract}}" will be
-                                interpolated.
-                                note: The substitution pattern is required.
-                                                                        [string]
-  -v, --verbose                 Configure how much information is logged to the
-                                console during the deployment of contracts.
-                                                                         [count]
-  -q, --quiet                   Disable log messages. Output is restricted to
-                                the address(es) of newly deployed contracts. If
-                                a single contract is specified, returns a
-                                string. Otherwise, returns a hash (name =>
-                                address) in JSON format. This data can be piped
-                                to other applications.[boolean] [default: false]
-  --help                        Show help                              [boolean]
+  --gas                                Gas to send with each transaction
+                                       note: In most situations, it would be
+                                       better to not use this option. By
+                                       default, the amount of gas sent is an
+                                       estimate.                        [number]
+  -h, --host                           Ethereum JSON-RPC server hostname
+                                                 [string] [default: "localhost"]
+  -p, --port                           Ethereum JSON-RPC server port number
+                                                        [number] [default: 8545]
+  --tls, --https, --ssl                Require TLS handshake (https:) to connect
+                                       to Ethereum JSON-RPC server
+                                                      [boolean] [default: false]
+  -a, --aa, --account_address          Address of Ethereum account to own
+                                       deployed contracts               [string]
+  -A, --ai, --account_index            Index of Ethereum account to own deployed
+                                       contracts.
+                                       note: List of available/unlocked accounts
+                                       is determined by Ethereum client.
+                                                           [number] [default: 0]
+  -i, --input_directory                Path to input directory. All compiled
+                                       contract artifacts are read from this
+                                       directory.
+                                       note: The default path assumes that the
+                                       current directory is the root of a
+                                       compiled "dapp" project.
+                                                     [string] [default: "./out"]
+  -o, --od, --output_directory         Path to output directory. All
+                                       "contract.deployed" JSON files will be
+                                       written to this directory.
+                                                     [string] [default: "./out"]
+  -O, --op, --output_pattern           Pattern to specify absolute output file
+                                       path. The substitution pattern
+                                       "{{contract}}" will be interpolated.
+                                       note: The substitution pattern is
+                                       required.                        [string]
+  -v, --verbose                        Configure how much information is logged
+                                       to the console during the deployment of
+                                       contracts.                        [count]
+  -q, --quiet                          Disable log messages. Output is
+                                       restricted to the address(es) of newly
+                                       deployed contracts. If a single contract
+                                       is specified, returns a string.
+                                       Otherwise, returns a hash (name =>
+                                       address) in JSON format. This data can be
+                                       piped to other applications.
+                                                      [boolean] [default: false]
+  --help                               Show help                       [boolean]
 
 Examples:
   dapp-deploy                               deploy all contracts via:
@@ -115,14 +128,14 @@ Examples:
   dapp-deploy -A 1                          deploy all contracts via:
                                             "http://localhost:8545" using
                                             account index #1
-  dapp-deploy -h                            deploy all contracts via:
-  "mainnet.infura.io" -p 443 --ssl -a       "https://mainnet.infura.io:443"
+  dapp-deploy -h "mainnet.infura.io" -p     deploy all contracts via:
+  443 --ssl -a                              "https://mainnet.infura.io:443"
   "0xB9903E9360E4534C737b33F8a6Fef667D5405  using account address
   A40"                                      "0xB9903E9360E4534C737b33F8a6Fef667D
                                             5405A40"
   dapp-deploy -c Foo                        deploy contract: "Foo"
-  dapp-deploy -c Foo --params bar           deploy contract: "Foo"
-  baz 123 --value 100                       call: "Foo('bar', 'baz', 123)"
+  dapp-deploy -c Foo --params bar baz 123   deploy contract: "Foo"
+  --value 100                               call: "Foo('bar', 'baz', 123)"
                                             pay to contract: "100 wei"
   dapp-deploy -c Foo Bar Baz                deploy contracts:
                                             ["Foo","Bar","Baz"]
