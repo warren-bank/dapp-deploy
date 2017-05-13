@@ -100,6 +100,12 @@ Options:
   -v, --verbose                 Configure how much information is logged to the
                                 console during the deployment of contracts.
                                                                          [count]
+  -q, --quiet                   Disable log messages. Output is restricted to
+                                the address(es) of newly deployed contracts. If
+                                a single contract is specified, returns a
+                                string. Otherwise, returns a hash (name =>
+                                address) in JSON format. This data can be piped
+                                to other applications.[boolean] [default: false]
   --help                        Show help                              [boolean]
 
 Examples:

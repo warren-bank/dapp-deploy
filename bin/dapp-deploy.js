@@ -109,6 +109,12 @@ Usage: $0 [options]
       describe: 'Configure how much information is logged to the console during the deployment of contracts.',
       count: true
     })
+    .option('q', {
+      alias: 'quiet',
+      describe: 'Disable log messages. Output is restricted to the address(es) of newly deployed contracts. If a single contract is specified, returns a string. Otherwise, returns a hash (name => address) in JSON format. This data can be piped to other applications.',
+      boolean: true,
+      default: false
+    })
     .example('$0', 'deploy all contracts via: "http://localhost:8545" using account index #0')
     .example('$0 -A 1', 'deploy all contracts via: "http://localhost:8545" using account index #1')
     .example('$0 -h "mainnet.infura.io" -p 443 --ssl -a "0xB9903E9360E4534C737b33F8a6Fef667D5405A40"', 'deploy all contracts via: "https://mainnet.infura.io:443" using account address "0xB9903E9360E4534C737b33F8a6Fef667D5405A40"')
@@ -137,7 +143,9 @@ const input_directory = argv.i
 const output_directory = argv.od
 const output_pattern = argv.op
 
-const VERBOSE_LEVEL = argv.v
+const QUIET = argv.q
+const VERBOSE_LEVEL = QUIET ? -1 : argv.v
+const PIPE  = function() { VERBOSE_LEVEL <  0 && process.stdout.write.apply(process.stdout, arguments) }
 const WARN  = function() { VERBOSE_LEVEL >= 0 && console.log.apply(console, arguments) }
 const INFO  = function() { VERBOSE_LEVEL >= 1 && console.log.apply(console, arguments) }
 const DEBUG = function() { VERBOSE_LEVEL >= 2 && console.log.apply(console, arguments) }
@@ -230,7 +238,20 @@ Q.fcall(function () {
   WARN("\n")
   process.exit(1)
 })
-.then(() => {
+.then((results) => {
+  var piped_result
+
+  if (QUIET){
+    if (results.length === 1){
+      piped_result = results[0].address
+      PIPE(piped_result)
+    }
+    else {
+      piped_result = JSON.stringify(results)
+      PIPE(piped_result)
+    }
+  }
+
   WARN("\n")
   process.exit(0)
 })
@@ -351,6 +372,8 @@ function save_deployment_address(contract_name, deployed_contract_address){
     catch (error){
       throw new Error('[Error] Unable to output address of deployed "' + contract_name + '" contract to file "' + deployments_filepath + '". Operation failed with the following information:' + "\n" + error.message)
     }
+
+    return {contract: contract_name, address: deployed_contract_address}
   })
 
   return promise
