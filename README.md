@@ -97,6 +97,9 @@ Options:
                                 interpolated.
                                 note: The substitution pattern is required.
                                                                         [string]
+  -v, --verbose                 Configure how much information is logged to the
+                                console during the deployment of contracts.
+                                                                         [count]
   --help                        Show help                              [boolean]
 
 Examples:

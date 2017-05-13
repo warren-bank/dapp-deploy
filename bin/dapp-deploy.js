@@ -1,7 +1,6 @@
 #! /usr/bin/env node
 
 const yargs = require('yargs')
-const shell = require("shelljs")
 const Web3 = require('web3')
 const Q = require('q')
 const fs = require('fs')
@@ -105,6 +104,11 @@ Usage: $0 [options]
       string: true,
       nargs: 1
     })
+    .option('v', {
+      alias: 'verbose',
+      describe: 'Configure how much information is logged to the console during the deployment of contracts.',
+      count: true
+    })
     .example('$0', 'deploy all contracts via: "http://localhost:8545" using account index #0')
     .example('$0 -A 1', 'deploy all contracts via: "http://localhost:8545" using account index #1')
     .example('$0 -h "mainnet.infura.io" -p 443 --ssl -a "0xB9903E9360E4534C737b33F8a6Fef667D5405A40"', 'deploy all contracts via: "https://mainnet.infura.io:443" using account address "0xB9903E9360E4534C737b33F8a6Fef667D5405A40"')
@@ -117,26 +121,6 @@ Usage: $0 [options]
     .help('help')
     .epilog("copyright: Warren Bank <github.com/warren-bank>\nlicense: GPLv2")
     .argv
-
-var bins = shell.ls(argv.i + '/*.bin')
-var abis = shell.ls(argv.i + '/*.abi')
-
-var regex
-
-// verify each .bin has a corresponding .abi
-regex = /\.bin$/
-bins = bins.filter((bin) => {
-  var abi = bin.replace(regex, '.abi')
-  return (abis.indexOf(abi) >= 0)
-})
-
-// ignore unspecified contracts
-if (argv.c && argv.c.length){
-  regex = new RegExp('(?:^|/)(?:' + argv.c.join('|') + ')\.bin$')
-  bins = bins.filter((bin) => {
-    return bin.match(regex)
-  })
-}
 
 const https = argv.tls
 const host = argv.h
@@ -152,6 +136,50 @@ const account_index = argv.ai
 const input_directory = argv.i
 const output_directory = argv.od
 const output_pattern = argv.op
+
+const VERBOSE_LEVEL = argv.v
+const WARN  = function() { VERBOSE_LEVEL >= 0 && console.log.apply(console, arguments) }
+const INFO  = function() { VERBOSE_LEVEL >= 1 && console.log.apply(console, arguments) }
+const DEBUG = function() { VERBOSE_LEVEL >= 2 && console.log.apply(console, arguments) }
+
+var regex
+
+const ls = function(path, file_ext){
+  var files
+  file_ext = file_ext.replace(/^\.*(.*)$/, '$1')
+  regex = new RegExp('\.' + file_ext + '$')
+  files = fs.readdirSync(path)
+  files = files.filter((file) => {
+    return file.match(regex)
+  })
+  return files
+}
+
+var bins, abis
+try {
+  bins = ls(input_directory, '.bin')
+  abis = ls(input_directory, '.abi')
+}
+catch(error){
+  WARN(error.message)
+  WARN("\n")
+  process.exit(1)
+}
+
+// verify each .bin has a corresponding .abi
+regex = /\.bin$/
+bins = bins.filter((bin) => {
+  var abi = bin.replace(regex, '.abi')
+  return (abis.indexOf(abi) >= 0)
+})
+
+// ignore unspecified contracts
+if (argv.c && argv.c.length){
+  regex = new RegExp('(?:^|/)(?:' + argv.c.join('|') + ')\.bin$')
+  bins = bins.filter((bin) => {
+    return bin.match(regex)
+  })
+}
 
 var web3, network_id, owner
 
@@ -191,27 +219,28 @@ Q.fcall(function () {
 
   regex = /\.bin$/
   bins.forEach((bin) => {
-    var abi = bin.replace(regex, '.abi')
-    promises.push( deploy_contract(bin, abi) )
+    var contract_name = bin.replace(regex, '')
+    promises.push(deploy_contract(contract_name))
   })
 
   return Q.all(promises)
 })
 .catch((error) => {
-  console.log(error.message)
-  console.log("\n")
+  WARN(error.message)
+  WARN("\n")
   process.exit(1)
 })
 .then(() => {
-  console.log("\n")
+  WARN("\n")
   process.exit(0)
 })
 
-function deploy_contract (bin_filepath, abi_filepath){
-  var contract_name, contract_bin, contract_abi, gas_estimate, $contract, deployed_contract_address, promise
+function deploy_contract (contract_name){
+  var bin_filepath, abi_filepath, contract_bin, contract_abi, gas_estimate, $contract, deployed_contract_address, promise
   var deferred = Q.defer()
 
-  contract_name = bin_filepath.replace(/^(?:.*\/)?([^\/]+)\.bin$/, '$1')
+  bin_filepath = input_directory + '/' + contract_name + '.bin'
+  abi_filepath = input_directory + '/' + contract_name + '.abi'
 
   contract_bin = fs.readFileSync(bin_filepath).toString()
   contract_abi = fs.readFileSync(abi_filepath).toString()
@@ -225,11 +254,11 @@ function deploy_contract (bin_filepath, abi_filepath){
       deferred.reject(new Error('[Error] Deployment of ' + contract_name + ' contract failed with the following information:' + "\n" + error.message))
     }
     if (! deployed_contract.address) {
-      console.log('[Notice] Transaction hash for deployment of ' + contract_name + ' contract:' + "\n    " + deployed_contract.transactionHash)
+      DEBUG('[Notice] Transaction hash for deployment of ' + contract_name + ' contract:' + "\n    " + deployed_contract.transactionHash)
     }
     else {
       deployed_contract_address = deployed_contract.address
-      console.log('[Notice] ' + contract_name + ' contract has successfully been deployed at address:' + "\n    " + deployed_contract_address)
+      INFO('[Notice] ' + contract_name + ' contract has successfully been deployed at address:' + "\n    " + deployed_contract_address)
       deferred.resolve()
     }
   })
@@ -285,7 +314,7 @@ function save_deployment_address(contract_name, deployed_contract_address){
 
     try {
       fs.writeFileSync(deployments_filepath, JSON.stringify(contract_deployments))
-      console.log('[Notice] Address of deployed contract has successfully been added to file:' + "\n    " + deployments_filepath)
+      WARN('[Notice] Address of deployed contract has successfully been added to file:' + "\n    " + deployments_filepath)
     }
     catch (error){
       throw new Error('[Error] Unable to output deployed contract address to file "' + deployments_filepath + '". Operation failed with the following information:' + "\n" + error.message)
