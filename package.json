@@ -1,0 +1,29 @@
+{
+  "name": "@warren-bank/dapp-deploy",
+  "version": "1.0.0",
+  "dependencies": {
+    "q": "^1.5.0",
+    "shelljs": "^0.7.7",
+    "web3": "^0.19.0",
+    "yargs": "^8.0.1"
+  },
+  "bin": {
+    "dapp-deploy": "bin/dapp-deploy.js"
+  },
+  "license": "GPL-2.0",
+  "author": {
+    "name": "Warren R. Bank",
+    "email": "warren.r.bank@gmail.com",
+    "url": "https://github.com/warren-bank"
+  },
+  "homepage": "https://github.com/warren-bank/dapp-deploy",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/warren-bank/dapp-deploy"
+  },
+  "bugs": {
+    "url": "https://github.com/warren-bank/dapp-deploy/issues"
+  },
+  "description": "command-line tool to deploy Ethereum contracts to a blockchain",
+  "keywords": ["web3.js","web3","ethereum","solidity","solc","geth","testrpc","dapp","dapple","dapphub","truffle","trufflesuite"]
+}
