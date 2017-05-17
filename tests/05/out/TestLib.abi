@@ -1,0 +1,1 @@
+[{"constant":false,"inputs":[{"name":"self","type":"TestLib.Data storage"},{"name":"a","type":"uint256"}],"name":"Set","outputs":[],"payable":false,"type":"function"},{"constant":false,"inputs":[{"name":"self","type":"TestLib.Data storage"}],"name":"Get","outputs":[{"name":"","type":"uint256"}],"payable":false,"type":"function"}]

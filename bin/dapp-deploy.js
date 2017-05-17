@@ -44,6 +44,12 @@ Usage: $0 [options]
       string: true,
       array: true
     })
+    .option('l', {
+      alias: ['lib', 'library'],
+      describe: 'Link specified library(s) to dependent deployment contract(s)' + "\n" + 'note: The specified libary(s) won\'t be redeployed.',
+      string: true,
+      array: true
+    })
     .option('params', {
       describe: 'Parameter(s) to pass to contract constructor(s)' + "\n" + 'note: In most situations, each contract having a constructor that accepts input parameters should be deployed individually, rather than in a batch. Please be careful.',
       array: true,
@@ -125,17 +131,21 @@ Usage: $0 [options]
     .example('$0 -A 1', 'deploy all contracts via: "http://localhost:8545" using account index #1')
     .example('$0 -h "mainnet.infura.io" -p 443 --ssl -a "0xB9903E9360E4534C737b33F8a6Fef667D5405A40"', 'deploy all contracts via: "https://mainnet.infura.io:443" using account address "0xB9903E9360E4534C737b33F8a6Fef667D5405A40"')
     .example('$0 -c Foo', 'deploy contract: "Foo"')
+    .example('$0 -x Foo', 'deploy all contracts except: "Foo"')
     .example('$0 -c Foo --params bar baz 123 --value 100', 'deploy contract: "Foo"' + "\n" + 'call: "Foo(\'bar\', \'baz\', 123)"' + "\n" + 'pay to contract: "100 wei"')
+    .example('$0 -c Foo -l Bar=0x12345 Baz=0x98765', 'deploy contract: "Foo"' + "\n" + 'link to libraries: "Bar" at address: "0x12345", "Baz" at address: "0x98765"')
     .example('$0 -c Foo Bar Baz', 'deploy contracts: ["Foo","Bar","Baz"]')
     .example('$0 -c Foo -o "~/Dapp_frontend/contracts"', 'generate: "~/Dapp_frontend/contracts/Foo.deployed"')
     .example('$0 -c Foo -O "~/Dapp_frontend/contracts/{{contract}}.deployed.json"', 'generate: "~/Dapp_frontend/contracts/Foo.deployed.json"')
     .example('$0 -c Foo -i "~/Dapp_contracts/out" -O "./contracts/{{contract}}.deployed.json"', 'deploy contract: "~/Dapp_contracts/out/Foo.bin"' + "\n" + 'and generate: "./contracts/Foo.deployed.json"')
     .help('help')
+    .wrap(yargs.terminalWidth())
     .epilog("copyright: Warren Bank <github.com/warren-bank>\nlicense: GPLv2")
     .argv
 
 const contract_whitelist = argv.c
 const contract_blacklist = argv.x
+const contract_libraries = argv.l
 
 const https = argv.tls
 const host = argv.h
@@ -159,7 +169,7 @@ const WARN  = function() { VERBOSE_LEVEL >= 0 && console.log.apply(console, argu
 const INFO  = function() { VERBOSE_LEVEL >= 1 && console.log.apply(console, arguments) }
 const DEBUG = function() { VERBOSE_LEVEL >= 2 && console.log.apply(console, arguments) }
 
-var regex
+var regex, keys
 
 const ls = function(path, file_ext){
   var files
@@ -172,8 +182,19 @@ const ls = function(path, file_ext){
   return files
 }
 
-var bins, abis
+var libs, bins, abis
 try {
+  libs = {}  // name => address
+  regex = /=(?:0x)?/
+  contract_libraries && contract_libraries.forEach((lib) => {
+    // lib == 'Foo=0x12345'
+    var name, addr
+    [name, addr] = lib.split(regex, 2)
+    if (name && addr){
+      libs[name] = addr
+    }
+  })
+
   bins = ls(input_directory, '.bin')
   abis = ls(input_directory, '.abi')
 }
@@ -206,7 +227,19 @@ if (contract_blacklist && contract_blacklist.length){
   })
 }
 
+// ignore externally linked libraries
+keys = libs && Object.keys(libs)
+if (libs && keys.length){
+  regex = new RegExp('(?:^|/)(?:' + keys.join('|') + ')\.bin$')
+  bins = bins.filter((bin) => {
+    return (! bin.match(regex))
+  })
+}
+
 var web3, network_id, owner
+
+var deployed = {}  // name => address
+var awaiting_libs = {}  // name => {bin, abi, libs:[]}
 
 Q.fcall(function () {
   web3 = new Web3(new Web3.providers.HttpProvider('http' + (https? 's' : '') + '://' + host + ':' + port))
@@ -240,6 +273,7 @@ Q.fcall(function () {
   }
 })
 .then(() => {
+  var regex  // locally scoped
   var promises = []
 
   regex = /\.bin$/
@@ -250,21 +284,26 @@ Q.fcall(function () {
 
   return Q.all(promises)
 })
+.then(() => {
+  return retry_deploy_linked_contracts()
+})
 .catch((error) => {
   WARN(error.message)
   WARN("\n")
   process.exit(1)
 })
-.then((results) => {
+.then(() => {
   var piped_result
 
+  keys = Object.keys(deployed)
+
   if (QUIET){
-    if (results.length === 1){
-      piped_result = results[0].address
+    if (keys.length === 1){
+      piped_result = deployed[keys[0]]
       PIPE(piped_result)
     }
     else {
-      piped_result = JSON.stringify(results)
+      piped_result = JSON.stringify(deployed)
       PIPE(piped_result)
     }
   }
@@ -273,15 +312,77 @@ Q.fcall(function () {
   process.exit(0)
 })
 
-function deploy_contract (contract_name){
-  var bin_filepath, abi_filepath, contract_bin, contract_abi, $contract, gas_estimate, contract_constructor_parameters, contract_data, deployed_contract_address, promise
+function deploy_contract (contract_name, retry){
+  var keys  // locally scoped
+  var bin_filepath, abi_filepath, contract_bin, contract_abi, linked_libs, linked_libs_pattern, linked_libs_match, linked_lib_name, index, known_libs, unknown_libs, $contract, gas_estimate, contract_constructor_parameters, contract_data, deployed_contract_address, promise
   var deferred = Q.defer()
 
-  bin_filepath = input_directory + '/' + contract_name + '.bin'
-  abi_filepath = input_directory + '/' + contract_name + '.abi'
+  if (retry){
+    contract_bin = retry.bin
+    contract_abi = retry.abi
+  }
+  else {
+    bin_filepath = input_directory + '/' + contract_name + '.bin'
+    abi_filepath = input_directory + '/' + contract_name + '.abi'
 
-  contract_bin = fs.readFileSync(bin_filepath).toString()
-  contract_abi = fs.readFileSync(abi_filepath).toString()
+    contract_bin = fs.readFileSync(bin_filepath).toString()
+    contract_abi = fs.readFileSync(abi_filepath).toString()
+  }
+
+  if (retry){
+    linked_libs = retry.libs
+  }
+  else {
+    linked_libs = {}
+    linked_libs_pattern = /_+([^_]+)_+/g
+    while ((linked_libs_match = linked_libs_pattern.exec(contract_bin)) !== null) {
+      if (
+        (linked_libs_match[0].length === 40) &&
+        (typeof linked_libs[linked_libs_match[1]] === 'undefined')
+      ){
+        linked_lib_name = linked_libs_match[1]
+        // sanitize name
+        index = linked_lib_name.indexOf(':')
+        if (index >= 0){
+          linked_lib_name = linked_lib_name.substr(index + 1)
+        }
+        else {
+          // path to contract.sol (?)
+          linked_lib_name = linked_lib_name.replace(/^[\/]?(?:[^\/]+[\/])*([^\/]+)\.sol$/, '$1')
+        }
+        linked_libs[linked_lib_name] = new RegExp(linked_libs_match[0], 'g')
+      }
+    }
+  }
+
+  keys = linked_libs && Object.keys(linked_libs)
+  if (linked_libs && keys.length){
+    known_libs = Object.assign({}, libs, deployed)  // name => address
+
+    unknown_libs = []
+    keys.forEach((lib) => {
+      if (typeof known_libs[lib] === 'undefined') {
+        unknown_libs.push(lib)
+      }
+      else {
+        contract_bin = contract_bin.replace(linked_libs[lib], known_libs[lib].replace(/^(0x)?/, ''))
+        delete linked_libs[lib]
+      }
+    })
+
+    if (unknown_libs.length){
+      if (! retry){
+        awaiting_libs[contract_name] = {
+          bin: contract_bin,
+          abi: contract_abi,
+          libs: linked_libs
+        }
+        DEBUG('[Notice] "' + contract_name + '" contract needs linking to the following library(s):' + "\n  " + unknown_libs.join("\n  ") + "\n" + 'Will resume when their deployed addresses become available.')
+      }
+      deferred.resolve()
+      return deferred.promise
+    }
+  }
 
   $contract = web3.eth.contract(JSON.parse(contract_abi))
 
@@ -326,6 +427,10 @@ function deploy_contract (contract_name){
     }
     else {
       deployed_contract_address = deployed_contract.address
+
+      deployed[contract_name] = deployed_contract_address
+      if (retry) delete awaiting_libs[contract_name]
+
       INFO('[Notice] "' + contract_name + '" contract has successfully been deployed at address:' + "\n    " + deployed_contract_address)
       deferred.resolve()
     }
@@ -389,9 +494,50 @@ function save_deployment_address(contract_name, deployed_contract_address){
     catch (error){
       throw new Error('[Error] Unable to output address of deployed "' + contract_name + '" contract to file "' + deployments_filepath + '". Operation failed with the following information:' + "\n" + error.message)
     }
-
-    return {contract: contract_name, address: deployed_contract_address}
   })
 
   return promise
+}
+
+function retry_deploy_linked_contracts(_deferred){
+  var keys  // locally scoped
+  var start_count, promises, end_count
+  var deferred = _deferred || Q.defer()
+
+  keys = Object.keys(awaiting_libs)
+  start_count = keys.length
+
+  if (start_count === 0){
+    deferred.resolve()
+    return deferred.promise
+  }
+
+  promises = []
+
+  keys.forEach((contract_name) => {
+    var retry = awaiting_libs[contract_name]
+    promises.push(deploy_contract (contract_name, retry))
+  })
+
+  Q.all(promises)
+  .then(() => {
+    keys = Object.keys(awaiting_libs)
+    end_count = keys.length
+
+    if (end_count === 0){
+      deferred.resolve()
+    }
+    else if (end_count === start_count){
+      deferred.reject(new Error('[Error] Deployment of the following contracts failed due to dependency upon unlinked library(s):' + "\n" + JSON.stringify(awaiting_libs)))
+    }
+    else {
+      // recursion: this call made some progress. try again..
+      retry_deploy_linked_contracts(deferred)
+    }
+  })
+  .catch((error) => {
+    deferred.reject(error)
+  })
+
+  return deferred.promise
 }
