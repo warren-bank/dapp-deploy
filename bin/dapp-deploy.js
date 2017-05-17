@@ -371,12 +371,12 @@ function deploy_contract (contract_name, retry){
     })
 
     if (unknown_libs.length){
+      awaiting_libs[contract_name] = {
+        bin: contract_bin,
+        abi: contract_abi,
+        libs: linked_libs
+      }
       if (! retry){
-        awaiting_libs[contract_name] = {
-          bin: contract_bin,
-          abi: contract_abi,
-          libs: linked_libs
-        }
         DEBUG('[Notice] "' + contract_name + '" contract needs linking to the following library(s):' + "\n  " + unknown_libs.join("\n  ") + "\n" + 'Will resume when their deployed addresses become available.')
       }
       deferred.resolve()
