@@ -334,7 +334,9 @@ function deploy_contract (contract_name, retry){
   }
   else {
     linked_libs = {}
-    linked_libs_pattern = /_+([^_]+)_+/g
+    // Allow contract names to contain '_' character, but sequences of 2 or more in a row (ie: '__') will escape the capture pattern.
+    // This regex will interpret such a sequence to mark the (premature) end of a "__path/to/contract.sol:contractName__" token.
+    linked_libs_pattern = /_+((?:[^_]+(?:_[^_])?)+)_+/g
     while ((linked_libs_match = linked_libs_pattern.exec(contract_bin)) !== null) {
       if (
         (linked_libs_match[0].length === 40) &&
@@ -420,7 +422,10 @@ function deploy_contract (contract_name, retry){
   })
   contract_constructor_parameters.push((error, deployed_contract) => {
     if (error){
-      deferred.reject(new Error('[Error] Deployment of "' + contract_name + '" contract failed with the following information:' + "\n" + error.message))
+      return deferred.reject(new Error('[Error] Deployment of "' + contract_name + '" contract failed with the following information:' + "\n" + error.message + "\n\n" + 'The constructor was passed the following parameters:' + "\n" + JSON.stringify(contract_constructor_parameters.slice(0,-1))))
+    }
+    if (! deployed_contract) {
+      return deferred.reject(new Error('[Error] Deployment of "' + contract_name + '" contract failed with no additional information.' + "\n" + 'The constructor was passed the following parameters:' + "\n" + JSON.stringify(contract_constructor_parameters.slice(0,-1))))
     }
     if (! deployed_contract.address) {
       DEBUG('[Notice] Transaction hash for deployment of "' + contract_name + '" contract:' + "\n    " + deployed_contract.transactionHash)

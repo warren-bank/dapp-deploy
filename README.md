@@ -117,6 +117,26 @@ license: GPLv2
 * When `dapp` is installed, this tool can be invoked by the command: `dapp deploy [options]`
 * When used standalone, it can be invoked by the command: `dapp-deploy [options]`
 
+#### Methodology:
+
+* find all .bin and .abi files in "input directory"
+* filter contracts that don't have both artifacts
+* if whitelist: filter contracts that aren't in whitelist
+* if blacklist: filter contracts that are in blacklist
+* if libraries: filter contracts (ie: compiled libraries) that should be linked using a previously deployed instance
+* for each remaining contract, perform in parallel (first pass):
+  * read code
+  * determine dependent libraries (if any)
+  * determine whether the deployed address of any dependent libraries is (as of yet) unknown
+  * if so: save metadata and stop processing contract
+  * otherwise: deploy contract, save address, write output file (.deployed)
+* if first pass completes and there is saved metadata for unlinked contracts:
+  * iterate through all unlinked contracts and attempt to redeploy
+  * when iteration completes:
+    * if the number of unlinked contracts is zero: success
+    * if the number of unlinked contracts has decreased: recursively perform the iteration again
+    * otherwise: failure => there are contract dependencies on libraries for which no address is available to link
+
 #### Commentary:
 
 * I'm fairly new to the Ethereum ecosystem.
