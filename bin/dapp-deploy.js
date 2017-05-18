@@ -51,7 +51,7 @@ Usage: $0 [options]
       array: true
     })
     .option('params', {
-      describe: 'Parameter(s) to pass to contract constructor(s)' + "\n" + 'note: In most situations, each contract having a constructor that accepts input parameters should be deployed individually, rather than in a batch. Please be careful.',
+      describe: 'Parameter(s) to pass to contract constructor(s)' + "\n" + 'note: Arrays can be encoded into JSON.' + "\n" + 'note: In most situations, each contract having a constructor that accepts input parameters should be deployed individually, rather than in a batch. Please be careful.',
       array: true,
       default: []
     })
@@ -133,6 +133,8 @@ Usage: $0 [options]
     .example('$0 -c Foo', 'deploy contract: "Foo"')
     .example('$0 -x Foo', 'deploy all contracts except: "Foo"')
     .example('$0 -c Foo --params bar baz 123 --value 100', 'deploy contract: "Foo"' + "\n" + 'call: "Foo(\'bar\', \'baz\', 123)"' + "\n" + 'pay to contract: "100 wei"')
+    .example('$0 -c Foo --params \'["a","b","c"]\'', 'deploy contract: "Foo"' + "\n" + 'call: "Foo([\'a\', \'b\', \'c\'])"')
+    .example('$0 -c Foo --params \'[1,2,3]\'', 'deploy contract: "Foo"' + "\n" + 'call: "Foo([1, 2, 3])"')
     .example('$0 -c Foo -l Bar=0x12345 Baz=0x98765', 'deploy contract: "Foo"' + "\n" + 'link to libraries: "Bar" at address: "0x12345", "Baz" at address: "0x98765"')
     .example('$0 -c Foo Bar Baz', 'deploy contracts: ["Foo","Bar","Baz"]')
     .example('$0 -c Foo -o "~/Dapp_frontend/contracts"', 'generate: "~/Dapp_frontend/contracts/Foo.deployed"')
@@ -151,7 +153,20 @@ const https = argv.tls
 const host = argv.h
 const port = argv.p
 
-const params = argv.params
+const params = argv.params.map((param) => {
+  if (
+    (typeof param === 'string') &&
+    (param[0] === '[') &&
+    (param[param.length - 1] === ']')
+  ){
+    // JSON-encoded array
+    try {
+      param = JSON.parse(param)
+    }
+    catch(e){}
+  }
+  return param
+})
 const wei = argv.wei
 const gas = argv.gas
 
