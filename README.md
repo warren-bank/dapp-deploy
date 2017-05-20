@@ -15,6 +15,10 @@ Command-line tool to:
 npm install -g @warren-bank/dapp-deploy
 ```
 
+*aside:*
+* Before installation, you first might want to check whether your `$PATH` contains any conflicting symbolic links: `which dapp-deploy`
+* Very [recently](https://github.com/dapphub/dapp/commit/d26ff7f598107665935860dd70d9fb2174b39966), the [`dapphub/dapp`](https://github.com/dapphub/dapp) toolchain added [`deploy`](https://github.com/dapphub/dapp/blob/master/libexec/dapp/dapp-deploy) to its set of included libraries. This command is currently an alias for (ie: symbolic link to) [`create`](https://github.com/dapphub/dapp/blob/master/libexec/dapp/dapp-create).
+
 #### Simple Example:
 
 ```bash
