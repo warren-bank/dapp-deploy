@@ -225,7 +225,7 @@ const preprocess_params = function(network_id){
 
       try {
         stats = fs.statSync(deployments_filepath)
-        if (! stats.isFile()) deployments_filepath = null
+        if (! stats.isFile()) throw ''
       }
       catch(error){
         missing_dependencies[contract_name] = deployments_filepath
