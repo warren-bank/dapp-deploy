@@ -64,7 +64,8 @@ Options:
  -l, --lib, --library                 Link specified library(s) to dependent deployment contract(s)
                                       note: The specified libary(s) won't be redeployed.  [array]
  --params                             Parameter(s) to pass to contract constructor(s)
-                                      note: Arrays can be encoded into JSON.
+                                      note: Addresses for previously deployed contracts (with metadata located at filepaths determined by "--output_pattern" and "--output_directory") can be referenced by passing a string parameter having the format: "{{CONTRACTNAME}}"
+                                      note: Arrays can be encoded into JSON. Arrays may contain strings that reference the address of a previously deployed contract.
                                       note: In most situations, each contract having a constructor that accepts input parameters should be deployed individually, rather than in a batch. Please be careful.  [array] [default: []]
  --value, --wei                       Value (wei) to pass to contract constructor(s)
                                       note: In most situations, each contract having a payable constructor should be deployed individually, rather than in a batch. Please be careful.  [number] [default: 0]
@@ -78,7 +79,7 @@ Options:
                                       note: List of available/unlocked accounts is determined by Ethereum client.  [number] [default: 0]
  -i, --input_directory                Path to input directory. All compiled contract artifacts are read from this directory.
                                       note: The default path assumes that the current directory is the root of a compiled "dapp" project.  [string] [default: "./out"]
- -o, --od, --output_directory         Path to output directory. All "contract.deployed" JSON files will be written to this directory.  [string] [default: "./out"]
+ -o, --od, --output_directory         Path to output directory. All "CONTRACTNAME.deployed" JSON files will be written to this directory.  [string] [default: "./out"]
  -O, --op, --output_pattern           Pattern to specify absolute output file path. The substitution pattern "{{contract}}" will be interpolated.
                                       note: The substitution pattern is required.  [string]
  -v, --verbose                        Configure how much information is logged to the console during the deployment of contracts.  [count]
@@ -98,6 +99,11 @@ Examples:
                                                                                                   call: "Foo(['a', 'b', 'c'])"
  dapp-deploy -c Foo --params '[1,2,3]'                                                            deploy contract: "Foo"
                                                                                                   call: "Foo([1, 2, 3])"
+ dapp-deploy -c Foo --params '{{Bar}}' '{{Baz}}' '["{{Bar}}","{{Baz}}"]'                          deploy contract: "Foo"
+                                                                                                  call: "Foo('0x123', '0x456', ['0x123', '0x456'])"
+                                                                                                  where:
+                                                                                                    - contract "Bar" is deployed to address "0x123" with metadata at: "./out/Bar.deployed"
+                                                                                                    - contract "Baz" is deployed to address "0x456" with metadata at: "./out/Baz.deployed"
  dapp-deploy -c Foo -l Bar=0x12345 Baz=0x98765                                                    deploy contract: "Foo"
                                                                                                   link to libraries: "Bar" at address: "0x12345", "Baz" at address: "0x98765"
  dapp-deploy -c Foo Bar Baz                                                                       deploy contracts: ["Foo","Bar","Baz"]
