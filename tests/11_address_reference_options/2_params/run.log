@@ -1,0 +1,12 @@
+[Notice] Address of deployed "C_2" contract has successfully been added to file:
+    ./deployments/2/C_2.deployed
+
+
+[Notice] Address of deployed "C_3" contract has successfully been added to file:
+    ./deployments/3/C_3.deployed
+
+
+----------------------------------------
+
+C_2.name == C_2
+C_2.dependency == C_1

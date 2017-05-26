@@ -4,7 +4,11 @@ const yargs = require('yargs')
 const Web3 = require('web3')
 const Q = require('q')
 const fs = require('fs')
+const path = require('path')
 
+var regex, keys
+
+regex = /\//
 const argv = yargs
     .usage(`
 Tool to use in combination with 'dapphub/dapp'.
@@ -46,12 +50,12 @@ Usage: $0 [options]
     })
     .option('l', {
       alias: ['lib', 'library'],
-      describe: 'Link specified library(s) to dependent deployment contract(s)' + "\n" + 'note: The specified libary(s) won\'t be redeployed.',
+      describe: 'Link specified library(s) to dependent deployment contract(s)' + "\n" + 'note: The specified libary(s) won\'t be redeployed.' + "\n" + 'note: Addresses for previously deployed libaries can be specified in two formats: "LIBRARYNAME=0x12345" and "{{LIBRARYNAME, /optional/filepath}}". The latter format references stored .deployed metadata.',
       string: true,
       array: true
     })
     .option('params', {
-      describe: 'Parameter(s) to pass to contract constructor(s)' + "\n" + 'note: Addresses for previously deployed contracts (with metadata located at filepaths determined by "--output_pattern" and "--output_directory") can be referenced by passing a string parameter having the format: "{{CONTRACTNAME}}"' + "\n" + 'note: Arrays can be encoded into JSON. Arrays may contain strings that reference the address of a previously deployed contract.' + "\n" + 'note: In most situations, each contract having a constructor that accepts input parameters should be deployed individually, rather than in a batch. Please be careful.',
+      describe: 'Parameter(s) to pass to contract constructor(s)' + "\n" + 'note: Addresses for previously deployed contracts (with stored .deployed metadata) can be referenced by passing a string parameter having the format: "{{CONTRACTNAME, /optional/filepath}}"' + "\n" + 'note: Arrays can be encoded into JSON. Arrays may contain strings that reference the address of a previously deployed contract.' + "\n" + 'note: In most situations, each contract having a constructor that accepts input parameters should be deployed individually, rather than in a batch. Please be careful.',
       array: true,
       default: []
     })
@@ -101,14 +105,14 @@ Usage: $0 [options]
       describe: 'Path to input directory. All compiled contract artifacts are read from this directory.' + "\n" + 'note: The default path assumes that the current directory is the root of a compiled "dapp" project.',
       string: true,
       nargs: 1,
-      default: './out'
+      default: './out'.replace(regex, path.sep)
     })
     .option('o', {
       alias: ['od', 'output_directory'],
       describe: 'Path to output directory. All "CONTRACTNAME.deployed" JSON files will be written to this directory.',
       string: true,
       nargs: 1,
-      default: './out'
+      default: './out'.replace(regex, path.sep)
     })
     .option('O', {
       alias: ['op', 'output_pattern'],
@@ -136,11 +140,13 @@ Usage: $0 [options]
     .example('$0 -c Foo --params \'["a","b","c"]\'', 'deploy contract: "Foo"' + "\n" + 'call: "Foo([\'a\', \'b\', \'c\'])"')
     .example('$0 -c Foo --params \'[1,2,3]\'', 'deploy contract: "Foo"' + "\n" + 'call: "Foo([1, 2, 3])"')
     .example('$0 -c Foo --params \'{{Bar}}\' \'{{Baz}}\' \'["{{Bar}}","{{Baz}}"]\'', 'deploy contract: "Foo"' + "\n" + 'call: "Foo(\'0x123\', \'0x456\', [\'0x123\', \'0x456\'])"' + "\n" + 'where:' + "\n  - " + 'contract "Bar" is deployed to address "0x123" with metadata at: "./out/Bar.deployed"' + "\n  - " + 'contract "Baz" is deployed to address "0x456" with metadata at: "./out/Baz.deployed"')
-    .example('$0 -c Foo -l Bar=0x12345 Baz=0x98765', 'deploy contract: "Foo"' + "\n" + 'link to libraries: "Bar" at address: "0x12345", "Baz" at address: "0x98765"')
+    .example('$0 -c Foo --lib \'Bar=0x12345\' \'Baz=0x98765\'', 'deploy contract: "Foo"' + "\n" + 'link to libraries: "Bar" at address: "0x12345", "Baz" at address: "0x98765"')
+    .example('$0 -c Foo --lib \'{{Lib1}}\' \'{{Lib2,./out/}}\' \'{{Lib3,./out/Lib3.deployed}}\'', 'equivalent ways to reference metadata stored in the default \'--output_directory\'')
+    .example('$0 -c Foo --lib "{{Lib4, $HOME/ethereum/libs/v1.0.0/}}" \'{{Lib5, /home/warren/ethereum/libs/v1.0.1/Lib5.deployed.json}}\'', 'versioning of libraries, referencing absolute paths, using custom filenames')
     .example('$0 -c Foo Bar Baz', 'deploy contracts: ["Foo","Bar","Baz"]')
-    .example('$0 -c Foo -o "~/Dapp_frontend/contracts"', 'generate: "~/Dapp_frontend/contracts/Foo.deployed"')
-    .example('$0 -c Foo -O "~/Dapp_frontend/contracts/{{contract}}.deployed.json"', 'generate: "~/Dapp_frontend/contracts/Foo.deployed.json"')
-    .example('$0 -c Foo -i "~/Dapp_contracts/out" -O "./contracts/{{contract}}.deployed.json"', 'deploy contract: "~/Dapp_contracts/out/Foo.bin"' + "\n" + 'and generate: "./contracts/Foo.deployed.json"')
+    .example('$0 -c Foo -o "$HOME/Dapp_frontend/contracts"', 'generate: "~/Dapp_frontend/contracts/Foo.deployed"')
+    .example('$0 -c Foo -O "$HOME/Dapp_frontend/contracts/{{contract}}.deployed.json"', 'generate: "~/Dapp_frontend/contracts/Foo.deployed.json"')
+    .example('$0 -c Foo -i "$HOME/Dapp_contracts/out" -O "./contracts/{{contract}}.deployed.json"', 'deploy contract: "~/Dapp_contracts/out/Foo.bin"' + "\n" + 'and generate: "./contracts/Foo.deployed.json"')
     .help('help')
     .wrap(yargs.terminalWidth())
     .epilog("copyright: Warren Bank <github.com/warren-bank>\nlicense: GPLv2")
@@ -185,19 +191,25 @@ const WARN  = function() { VERBOSE_LEVEL >= 0 && console.log.apply(console, argu
 const INFO  = function() { VERBOSE_LEVEL >= 1 && console.log.apply(console, arguments) }
 const DEBUG = function() { VERBOSE_LEVEL >= 2 && console.log.apply(console, arguments) }
 
-var regex, keys
+const preprocess_options = function(network_id){
+  if (params) params = preprocess_option(network_id, params, '--params')
+  if (libs) libs = preprocess_option(network_id, libs, '--lib')
+}
 
-const preprocess_params = function(network_id){
+const preprocess_option = function(network_id, option, option_name){
   var dependent_contracts = {}  // name => address
   var missing_dependencies = {}  // name => bad_filepath
   var contract_name
 
   regex = /^\{\{([^\}]+)\}\}$/
-  var extract_contract_name_from_param = function(param){
+  var extract_contract_name_from_option = function(param){
     if (Array.isArray(param)){
-      param.forEach(extract_contract_name_from_param)
+      param.forEach(extract_contract_name_from_option)
     }
-    else if (typeof param === 'string') {
+    else if ((typeof param === 'object') && (param !== null)){
+      Object.values(param).forEach(extract_contract_name_from_option)
+    }
+    else if (typeof param === 'string'){
       if (param.match(regex)) {
         contract_name = param.replace(regex, '$1')
         dependent_contracts[contract_name] = null
@@ -205,22 +217,47 @@ const preprocess_params = function(network_id){
     }
     else {}
   }
-  extract_contract_name_from_param(params)
+  extract_contract_name_from_option(option)
 
   keys = Object.keys(dependent_contracts)
-  if (keys.length === 0) return
+  if (keys.length === 0) return option
 
   var resolve_dependent_contracts = function(){
-    var deployments_filepath, fcontent, address
+    var $name, deployments_filepath, fcontent, address
 
     var resolve_deployment_filepath = function(contract_name){
-      var stats
+      var $path, $dir, $fname, stats
 
-      if (output_pattern){
-        deployments_filepath = output_pattern.replace(/\{\{contract\}\}/, contract_name)
+      [$name, $path] = contract_name.split(/\s*,\s*/, 2)
+
+      if (! $path){
+        if (output_pattern){
+          deployments_filepath = output_pattern.replace(/\{\{contract\}\}/, contract_name)
+        }
+        else {
+          deployments_filepath = output_directory + path.sep + contract_name + '.deployed'
+        }
       }
       else {
-        deployments_filepath = output_directory + '/' + contract_name + '.deployed'
+        if ($path.indexOf(path.sep) >= 0){
+          // path
+          if ($path[$path.length - 1] === path.sep){
+            // directory path
+            $dir = $path
+            $fname = $name + '.deployed'
+            deployments_filepath = $dir + $fname
+          }
+          else {
+            // filepath
+            deployments_filepath = $path
+          }
+        }
+        else {
+          // filename
+          $dir = output_directory + path.sep
+          $fname = $path
+          deployments_filepath = $dir + $fname
+        }
       }
 
       try {
@@ -228,7 +265,7 @@ const preprocess_params = function(network_id){
         if (! stats.isFile()) throw ''
       }
       catch(error){
-        missing_dependencies[contract_name] = deployments_filepath
+        missing_dependencies[$name] = deployments_filepath
         deployments_filepath = null
       }
     }
@@ -249,11 +286,11 @@ const preprocess_params = function(network_id){
             dependent_contracts[contract_name] = address
           }
           else {
-            missing_dependencies[contract_name] = deployments_filepath
+            throw ''
           }
         }
         catch(error){
-          missing_dependencies[contract_name] = deployments_filepath
+          missing_dependencies[$name] = deployments_filepath
         }
       }
       else {}
@@ -263,14 +300,20 @@ const preprocess_params = function(network_id){
 
   keys = Object.keys(missing_dependencies)
   if (keys.length){
-    throw new Error('[Error] --params reference the following unresolved contracts:' + "\n  " + keys.join("\n  ") + "\n" + 'Search paths for deployment metadata:' + "\n  " + Object.values(missing_dependencies).join("\n  "))
+    throw new Error('[Error] ' + option_name + ' option references the following unresolved contracts:' + "\n  " + keys.join("\n  ") + "\n" + 'Search paths for deployment metadata:' + "\n  " + Object.values(missing_dependencies).join("\n  "))
   }
 
-  var interpolate_contract_name_in_param = function(param){
+  var interpolate_contract_name_in_option = function(param){
     if (Array.isArray(param)){
       param.forEach((_param, index) => {
-        param[index] = interpolate_contract_name_in_param(_param)
+        param[index] = interpolate_contract_name_in_option(_param)
       })
+      return param
+    }
+    else if ((typeof param === 'object') && (param !== null)){
+      for (var key in param){
+        param[key] = interpolate_contract_name_in_option(param[key])
+      }
       return param
     }
     else if (typeof param === 'string') {
@@ -284,7 +327,7 @@ const preprocess_params = function(network_id){
       return param
     }
   }
-  params = interpolate_contract_name_in_param(params)
+  return interpolate_contract_name_in_option(option)
 }
 
 const ls = function(path, file_ext){
@@ -301,13 +344,26 @@ const ls = function(path, file_ext){
 var libs, bins, abis
 try {
   libs = {}  // name => address
-  regex = /=(?:0x)?/
+  regex = /=0x/
   contract_libraries && contract_libraries.forEach((lib) => {
     // lib == 'Foo=0x12345'
     var name, addr
     [name, addr] = lib.split(regex, 2)
     if (name && addr){
       libs[name] = addr
+    }
+  })
+  regex = /^\{\{([^\}]+)\}\}$/
+  contract_libraries && contract_libraries.forEach((lib) => {
+    // lib == '{{Foo, /optional/filepath}}'
+    var val, name
+    if (lib.match(regex)) {
+      val = lib.replace(regex, '$1')
+      // the following line generates an error message: "Cannot set property 'undefined' of undefined"
+      // destructuring syntax works, so I'm not sure what the problem is..
+      //[name] = val.split(/\s*,\s*/, 2)
+      name = val.split(/\s*,\s*/, 2)[0]
+      libs[name] = lib  // will "preprocess" values of '--lib' option later
     }
   })
 
@@ -388,7 +444,7 @@ Q.fcall(function () {
     owner = accounts[account_index]
   }
 
-  preprocess_params(network_id)
+  preprocess_options(network_id)
 })
 .then(() => {
   var regex  // locally scoped
@@ -440,8 +496,8 @@ function deploy_contract (contract_name, retry){
     contract_abi = retry.abi
   }
   else {
-    bin_filepath = input_directory + '/' + contract_name + '.bin'
-    abi_filepath = input_directory + '/' + contract_name + '.abi'
+    bin_filepath = input_directory + path.sep + contract_name + '.bin'
+    abi_filepath = input_directory + path.sep + contract_name + '.abi'
 
     contract_bin = fs.readFileSync(bin_filepath).toString()
     contract_abi = fs.readFileSync(abi_filepath).toString()
@@ -514,7 +570,9 @@ function deploy_contract (contract_name, retry){
       gas_estimate = web3.eth.estimateGas({data: contract_bin})
     }
     catch(error){
-      deferred.reject(new Error('[Error] Deployment of "' + contract_name + '" contract failed with the following information:' + "\n" + error.message))
+      DEBUG('[Notice] contract constructor:' + "\n" + contract_name + '({data: ' + contract_bin + '})')
+
+      deferred.reject(new Error('[Error] Request for gas estimate of "' + contract_name + '" contract constructor failed with the following information:' + "\n" + error.message))
       return deferred.promise
     }
   }
@@ -526,7 +584,9 @@ function deploy_contract (contract_name, retry){
       gas_estimate = web3.eth.estimateGas({data: contract_data})
     }
     catch(error){
-      deferred.reject(new Error('[Error] Deployment of "' + contract_name + '" contract failed with the following information:' + "\n" + error.message))
+      DEBUG('[Notice] contract constructor:' + "\n" + contract_name + '(' + JSON.stringify(contract_constructor_parameters) + ')')
+
+      deferred.reject(new Error('[Error] Request for gas estimate of "' + contract_name + '" contract constructor failed with the following information:' + "\n" + error.message))
       return deferred.promise
     }
   }
@@ -540,6 +600,8 @@ function deploy_contract (contract_name, retry){
   })
   contract_constructor_parameters.push((error, deployed_contract) => {
     if (error){
+      DEBUG('[Notice] contract constructor:' + "\n" + contract_name + '(' + JSON.stringify(contract_constructor_parameters.slice(0,-1)) + ')')
+
       return deferred.reject(new Error('[Error] Deployment of "' + contract_name + '" contract failed with the following information:' + "\n" + error.message + "\n\n" + 'The constructor was passed the following parameters:' + "\n" + JSON.stringify(contract_constructor_parameters.slice(0,-1))))
     }
     if (! deployed_contract) {
@@ -559,7 +621,12 @@ function deploy_contract (contract_name, retry){
     }
   })
 
-  $contract.new.apply($contract, contract_constructor_parameters)
+  try {
+    $contract.new.apply($contract, contract_constructor_parameters)
+  }
+  catch(error){
+    contract_constructor_parameters[contract_constructor_parameters.length - 1](error)
+  }
 
   promise = deferred.promise
   .then(() => {
@@ -577,7 +644,7 @@ function save_deployment_address(contract_name, deployed_contract_address){
     deployments_filepath = output_pattern.replace(/\{\{contract\}\}/, contract_name)
   }
   else {
-    deployments_filepath = output_directory + '/' + contract_name + '.deployed'
+    deployments_filepath = output_directory + path.sep + contract_name + '.deployed'
   }
 
   fs.stat(deployments_filepath, (error, stats) => {
