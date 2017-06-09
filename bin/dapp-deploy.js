@@ -1,8 +1,10 @@
 #! /usr/bin/env node
 
+require('@warren-bank/es6-promise-defer')
+
 const yargs = require('yargs')
 const Web3 = require('web3')
-const Q = require('q')
+
 const fs = require('fs')
 const path = require('path')
 
@@ -413,11 +415,11 @@ var web3, network_id, owner
 var deployed = {}  // name => address
 var awaiting_libs = {}  // name => {bin, abi, libs:[]}
 
-Q.fcall(function () {
+new Promise((resolve, reject) => {
   web3 = new Web3(new Web3.providers.HttpProvider('http' + (https? 's' : '') + '://' + host + ':' + port))
 
   if (! web3.isConnected){
-    throw new Error('[Error] Unable to connect to Ethereum client')
+    reject(new Error('[Error] Unable to connect to Ethereum client'))
   }
 
   network_id = web3.version.network
@@ -430,21 +432,22 @@ Q.fcall(function () {
     accounts = web3.eth.accounts
 
     if (accounts.length === 0){
-      throw new Error('[Error] The Ethereum client cannot access any unlocked accounts')
+      reject(new Error('[Error] The Ethereum client cannot access any unlocked accounts'))
     }
 
     if (account_index >= accounts.length){
-      throw new Error('[Error] The Ethereum client can only access ' + accounts.length + ' unlocked accounts, which are indexed #0..' + (accounts.length-1) + '. The specified index #' + account_index + ' is out-of-bounds.')
+      reject(new Error('[Error] The Ethereum client can only access ' + accounts.length + ' unlocked accounts, which are indexed #0..' + (accounts.length-1) + '. The specified index #' + account_index + ' is out-of-bounds.'))
     }
 
     if (account_index < 0){
-      throw new Error('[Error] The specified index #' + account_index + ' is invalid')
+      reject(new Error('[Error] The specified index #' + account_index + ' is invalid'))
     }
 
     owner = accounts[account_index]
   }
 
   preprocess_options(network_id)
+  resolve()
 })
 .then(() => {
   var regex  // locally scoped
@@ -456,7 +459,7 @@ Q.fcall(function () {
     promises.push(deploy_contract(contract_name))
   })
 
-  return Q.all(promises)
+  return Promise.all(promises)
 })
 .then(() => {
   return retry_deploy_linked_contracts()
@@ -489,7 +492,7 @@ Q.fcall(function () {
 function deploy_contract (contract_name, retry){
   var keys  // locally scoped
   var bin_filepath, abi_filepath, contract_bin, contract_abi, linked_libs, linked_libs_pattern, linked_libs_match, linked_lib_name, index, known_libs, unknown_libs, $contract, gas_estimate, contract_constructor_parameters, contract_data, deployed_contract_address, promise
-  var deferred = Q.defer()
+  var deferred = Promise.defer()
 
   if (retry){
     contract_bin = retry.bin
@@ -638,7 +641,7 @@ function deploy_contract (contract_name, retry){
 
 function save_deployment_address(contract_name, deployed_contract_address){
   var deployments_filepath, contract_deployments, file_exists, promise
-  var deferred = Q.defer()
+  var deferred = Promise.defer()
 
   if (output_pattern){
     deployments_filepath = output_pattern.replace(/\{\{contract\}\}/, contract_name)
@@ -692,7 +695,7 @@ function save_deployment_address(contract_name, deployed_contract_address){
 function retry_deploy_linked_contracts(_deferred){
   var keys  // locally scoped
   var start_count, promises, end_count
-  var deferred = _deferred || Q.defer()
+  var deferred = _deferred || Promise.defer()
 
   keys = Object.keys(awaiting_libs)
   start_count = keys.length
@@ -709,7 +712,7 @@ function retry_deploy_linked_contracts(_deferred){
     promises.push(deploy_contract (contract_name, retry))
   })
 
-  Q.all(promises)
+  Promise.all(promises)
   .then(() => {
     keys = Object.keys(awaiting_libs)
     end_count = keys.length
