@@ -416,37 +416,44 @@ var deployed = {}  // name => address
 var awaiting_libs = {}  // name => {bin, abi, libs:[]}
 
 new Promise((resolve, reject) => {
-  web3 = new Web3(new Web3.providers.HttpProvider('http' + (https? 's' : '') + '://' + host + ':' + port))
-
-  if (! web3.isConnected){
-    reject(new Error('[Error] Unable to connect to Ethereum client'))
-  }
-
-  network_id = web3.version.network
-
   var accounts
-  if (account_address){
-    owner = account_address
+
+  try {
+    web3 = new Web3(new Web3.providers.HttpProvider('http' + (https? 's' : '') + '://' + host + ':' + port))
+
+    if (! web3.isConnected){
+      throw new Error('[Error] Unable to connect to Ethereum client')
+    }
+
+    network_id = web3.version.network
+
+    if (account_address){
+      owner = account_address
+    }
+    else {
+      accounts = web3.eth.accounts
+
+      if (accounts.length === 0){
+        throw new Error('[Error] The Ethereum client cannot access any unlocked accounts')
+      }
+
+      if (account_index >= accounts.length){
+        throw new Error('[Error] The Ethereum client can only access ' + accounts.length + ' unlocked accounts, which are indexed #0..' + (accounts.length-1) + '. The specified index #' + account_index + ' is out-of-bounds.')
+      }
+
+      if (account_index < 0){
+        throw new Error('[Error] The specified index #' + account_index + ' is invalid')
+      }
+
+      owner = accounts[account_index]
+    }
+
+    preprocess_options(network_id)
   }
-  else {
-    accounts = web3.eth.accounts
-
-    if (accounts.length === 0){
-      reject(new Error('[Error] The Ethereum client cannot access any unlocked accounts'))
-    }
-
-    if (account_index >= accounts.length){
-      reject(new Error('[Error] The Ethereum client can only access ' + accounts.length + ' unlocked accounts, which are indexed #0..' + (accounts.length-1) + '. The specified index #' + account_index + ' is out-of-bounds.'))
-    }
-
-    if (account_index < 0){
-      reject(new Error('[Error] The specified index #' + account_index + ' is invalid'))
-    }
-
-    owner = accounts[account_index]
+  catch(error){
+    return reject(error)
   }
 
-  preprocess_options(network_id)
   resolve()
 })
 .then(() => {
