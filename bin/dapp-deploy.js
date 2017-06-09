@@ -449,12 +449,12 @@ new Promise((resolve, reject) => {
     }
 
     preprocess_options(network_id)
+
+    resolve()
   }
   catch(error){
-    return reject(error)
+    reject(error)
   }
-
-  resolve()
 })
 .then(() => {
   var regex  // locally scoped
