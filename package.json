@@ -1,10 +1,13 @@
 {
   "name": "@warren-bank/dapp-deploy",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "dependencies": {
     "@warren-bank/es6-promise-defer": "^1.0.0",
     "web3": "^0.19.0",
     "yargs": "^8.0.1"
+  },
+  "yargs": {
+    "parse-numbers": false
   },
   "bin": {
     "dapp-deploy": "bin/dapp-deploy.js"

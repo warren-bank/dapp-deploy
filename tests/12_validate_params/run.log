@@ -1,0 +1,6 @@
+Storage data:
+{ value_bool: true,
+  value_uint8: '255',
+  value_uint256: '256',
+  value_address: '0x1111111111222222222233333333334444444444',
+  value_string: 'hello world\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000' }
